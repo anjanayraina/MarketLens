@@ -1,4 +1,3 @@
-import os
 import subprocess
 
 APP_FILE = "app.py"
