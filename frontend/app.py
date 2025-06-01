@@ -5,7 +5,7 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- CONFIGURATION & ENVIRONMENT LOADING ---
+# --- CONFIGURATION ---
 
 HORIZON_CONFIG = {
     "1 Day":    {"period": "5d",  "interval": "5m"},
@@ -19,7 +19,6 @@ HORIZON_CONFIG = {
 }
 
 def load_env():
-    """Load environment variables from resources/env.local or env.prod."""
     app_env = os.getenv("APP_ENV", "local").lower()
     env_file = "env.prod" if app_env == "prod" else "env.local"
     env_path = os.path.join("resources", env_file)
@@ -32,7 +31,7 @@ def load_env():
 load_env()
 API_HOST = os.getenv("API_HOST", "http://localhost:8000")
 
-# --- SESSION STATE INITIALIZATION ---
+# --- SESSION STATE ---
 
 def init_session():
     st.session_state.setdefault("access_token", None)
@@ -40,10 +39,9 @@ def init_session():
 
 init_session()
 
-# --- AUTHENTICATION ---
+# --- AUTH FUNCTIONS ---
 
 def login(username, password):
-    """Authenticate user and store JWT token in session state."""
     try:
         res = requests.post(f"{API_HOST}/auth/login", json={
             "username": username, "password": password
@@ -59,12 +57,26 @@ def login(username, password):
         st.error(f"Login error: {e}")
 
 def logout():
-    """Clear login info from session state."""
     st.session_state["access_token"] = None
     st.session_state["username"] = None
 
+def register(username, email, password):
+    try:
+        res = requests.post(
+            f"{API_HOST}/auth/register",
+            json={"username": username, "email": email, "password": password},
+        )
+        if res.status_code == 200:
+            st.success("Registration successful! You can now log in.")
+        else:
+            msg = res.json().get("detail", "Registration failed.")
+            st.error(f"Registration failed: {msg}")
+    except Exception as e:
+        st.error(f"Registration error: {e}")
+
+# --- SIDEBAR UI ---
+
 def render_login_sidebar():
-    """Sidebar login/logout form."""
     with st.sidebar.expander("Login", expanded=not st.session_state["access_token"]):
         if not st.session_state["access_token"]:
             username = st.text_input("Username")
@@ -76,10 +88,20 @@ def render_login_sidebar():
             if st.button("Logout"):
                 logout()
 
-# --- DATA FETCHING & VISUALIZATION ---
+def render_signup_sidebar():
+    with st.sidebar.expander("Sign Up", expanded=False):
+        new_username = st.text_input("New Username", key="signup_username")
+        new_email = st.text_input("Email", key="signup_email")
+        new_password = st.text_input("New Password", type="password", key="signup_password")
+        if st.button("Sign Up"):
+            if not (new_username and new_email and new_password):
+                st.warning("Please fill in all registration fields.")
+            else:
+                register(new_username, new_email, new_password)
+
+# --- MAIN DASHBOARD ---
 
 def fetch_ohlc(ticker, period, interval, token):
-    """Fetch OHLC data from the backend."""
     headers = {"Authorization": f"Bearer {token}"}
     try:
         res = requests.get(
@@ -95,7 +117,6 @@ def fetch_ohlc(ticker, period, interval, token):
         return None
 
 def render_candlestick_chart(df, ticker, horizon):
-    """Render a Plotly candlestick chart."""
     required_cols = {"date", "open", "high", "low", "close"}
     if not required_cols.issubset(df.columns):
         st.warning("Data format error: required columns missing.")
@@ -115,7 +136,6 @@ def render_candlestick_chart(df, ticker, horizon):
     st.plotly_chart(fig, use_container_width=True)
 
 def main_dashboard():
-    """Main stock dashboard: ticker input and chart display."""
     st.title("📈 Stock Analysis Dashboard")
     if not st.session_state["access_token"]:
         st.info("🔒 Please log in to view stock data.")
@@ -144,6 +164,7 @@ st.set_page_config(page_title="Investor Insight", layout="wide")
 st.sidebar.title("Investor Insight")
 
 render_login_sidebar()
+render_signup_sidebar()
 main_dashboard()
 
-# (Add more feature functions below: saved stocks, advice, sentiment, etc.)
+# (You can add more features here: saved stocks, AI advice, peers, etc.)
