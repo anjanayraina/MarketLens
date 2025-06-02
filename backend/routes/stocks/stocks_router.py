@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.db.mongo import db
 from backend.routes.auth.auth_router import get_current_user
 from bson import ObjectId
-
+import httpx
+import yfinance as yf
+import pandas as pd
 router = APIRouter()
 
 @router.post("/save")
@@ -31,3 +33,32 @@ async def remove_stock(ticker: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Ticker not found in watchlist")
     await db.watchlists.update_one({"user_id": user_id}, {"$pull": {"tickers": ticker}})
     return {"msg": f"{ticker} removed"}
+
+
+@router.get("/peers")
+async def get_peers(ticker: str):
+    company_id = "6598250"  # Example: Map ticker to company_id
+    url = f"https://www.screener.in/api/company/{company_id}/peers/"
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+        r.raise_for_status()
+        return r.json()
+
+@router.get("/ohlc")
+async def get_ohlc(ticker: str, period: str = "1mo", interval: str = "1d"):
+    df = yf.download(ticker, period=period, interval=interval)
+    return df.reset_index().to_dict(orient="records")
+
+@router.post("/advice")
+async def get_advice(tickers: list, risk: str, horizon: str):
+    prompt = f"User wants advice for {tickers}, risk: {risk}, horizon: {horizon}"
+    # Call OpenAI API here and return response
+    return {"advice": "Buy RELIANCE.NS, Hold INFY.NS"}
+
+@router.get("/indicators")
+async def get_indicators(ticker: str, period: str = "1mo"):
+
+    df = yf.download(ticker, period=period)
+    df["MA20"] = df["Close"].rolling(window=20).mean()
+    df["MA50"] = df["Close"].rolling(window=50).mean()
+    return df[["Close", "MA20", "MA50"]].reset_index().to_dict(orient="records")
