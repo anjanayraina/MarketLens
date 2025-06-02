@@ -39,3 +39,9 @@ async def clear_activity(user=Depends(get_current_user)):
     user_id = str(user["_id"])
     await db.activity_logs.delete_one({"user_id": user_id})
     return {"msg": "Activity log cleared"}
+
+@router.get("/log")
+async def get_activity(user=Depends(get_current_user)):
+    user_id = str(user["_id"])
+    alog = await db.activity_logs.find_one({"user_id": user_id})
+    return alog["activities"] if alog else []
