@@ -100,7 +100,7 @@ if (menu == "Login" or not st.session_state["access_token"]):
             st.session_state["access_token"] = res.json()["access_token"]
             st.session_state["username"] = username
             st.success("Logged in!")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Login failed.")
 
@@ -109,4 +109,4 @@ if menu == "Logout" and st.session_state["access_token"]:
     if st.button("Confirm Logout"):
         st.session_state["access_token"] = None
         st.session_state["username"] = None
-        st.experimental_rerun()
+        st.rerun()
