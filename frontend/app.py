@@ -2,6 +2,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from utils.state import get_token, clear_token
+from pages.chart import chart_page
 
 def load_env():
     app_env = os.getenv("APP_ENV", "local").lower()
@@ -19,10 +20,12 @@ from pages.login import login_page
 
 menu = st.sidebar.radio(
     "Navigation",
-    ("Dashboard", "My Watchlist", "Profile", "Activity Log", "Logout" if get_token() else "Login")
+    ("Dashboard", "Chart", "My Watchlist", "Profile", "Activity Log", "Logout" if get_token() else "Login")
 )
 
-if menu == "My Watchlist" and get_token():
+if menu == "Chart" and get_token():
+    chart_page()
+elif menu == "My Watchlist" and get_token():
     watchlist_page()
 elif menu == "Profile" and get_token():
     profile_page()

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from backend.db.mongo import db
 from backend.routes.auth.auth_router import get_current_user
+from fastapi import APIRouter, Depends, Query
 from bson import ObjectId
 import httpx
 import yfinance as yf
@@ -44,10 +45,27 @@ async def get_peers(ticker: str):
         r.raise_for_status()
         return r.json()
 
+
 @router.get("/ohlc")
-async def get_ohlc(ticker: str, period: str = "1mo", interval: str = "1d"):
+async def get_ohlc(
+    ticker: str,
+    period: str = Query("6mo", enum=["1d", "5d", "1mo", "3mo", "6mo", "1y", "5y", "max"]),
+    interval: str = Query("1d", enum=["1m", "5m", "15m", "1h", "1d", "1wk"])
+):
+    # Validate ticker
+    if not ticker:
+        return {"error": "Ticker is required"}
     df = yf.download(ticker, period=period, interval=interval)
-    return df.reset_index().to_dict(orient="records")
+    if df.empty:
+        return []
+    df.reset_index(inplace=True)
+    # Calculate moving averages
+    df["MA20"] = df["Close"].rolling(window=20).mean()
+    df["MA50"] = df["Close"].rolling(window=50).mean()
+    df = df[["Date", "Open", "High", "Low", "Close", "Volume", "MA20", "MA50"]]
+    # Convert datetime to string for JSON
+    df["Date"] = df["Date"].astype(str)
+    return df.to_dict(orient="records")
 
 @router.post("/advice")
 async def get_advice(tickers: list, risk: str, horizon: str):
@@ -57,7 +75,6 @@ async def get_advice(tickers: list, risk: str, horizon: str):
 
 @router.get("/indicators")
 async def get_indicators(ticker: str, period: str = "1mo"):
-
     df = yf.download(ticker, period=period)
     df["MA20"] = df["Close"].rolling(window=20).mean()
     df["MA50"] = df["Close"].rolling(window=50).mean()
