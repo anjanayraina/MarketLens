@@ -55,3 +55,17 @@ def make_json_serializable(record):
         if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
             record[k] = None
     return record
+
+
+def clean_json(obj):
+    if isinstance(obj, dict):
+        return {str(k): clean_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_json(x) for x in obj]
+    elif isinstance(obj, float):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+        return obj
+    elif hasattr(obj, "isoformat"):  # handle Timestamp to string
+        return str(obj)
+    return obj

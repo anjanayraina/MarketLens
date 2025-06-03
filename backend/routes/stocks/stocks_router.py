@@ -4,7 +4,7 @@ from backend.routes.auth.auth_router import get_current_user
 from fastapi import APIRouter, Depends, Query
 from bson import ObjectId
 import requests
-from backend.utils.data_processing import make_serializable , parse_peers_html, make_json_serializable
+from backend.utils.data_processing import make_serializable , parse_peers_html, make_json_serializable, clean_json
 import httpx
 import numpy as np
 import yfinance as yf
@@ -101,22 +101,22 @@ async def get_indicators(ticker: str, period: str = "1mo"):
     df = yf.download(ticker, period=period)
     if df.empty:
         return []
+    # ----------- FIX: Flatten MultiIndex columns -----------
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
+    # -------------------------------------------------------
     df["MA20"] = df["Close"].rolling(window=20).mean()
     df["MA50"] = df["Close"].rolling(window=50).mean()
     df = df.reset_index()
 
     cols = ["Close", "MA20", "MA50"]
-    if "Date" in df.columns:
-        cols.append("Date")
-    elif "Datetime" in df.columns:
-        cols.append("Datetime")
-    elif "index" in df.columns:
-        cols.append("index")
+    for candidate in ["Date", "Datetime", "index"]:
+        if candidate in df.columns:
+            cols.append(candidate)
+            break
 
     records = []
     for _, row in df[cols].iterrows():
-        # Convert to Python types
         record = {str(col): row[col] for col in cols}
-        record = make_json_serializable(record)
-        records.append(record)
+        records.append(clean_json(record))
     return records
