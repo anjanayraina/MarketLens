@@ -3,7 +3,8 @@ from backend.db.mongo import db
 from backend.routes.auth.auth_router import get_current_user
 from fastapi import APIRouter, Depends, Query
 from bson import ObjectId
-from backend.utils.data_processing import make_serializable
+import requests
+from backend.utils.data_processing import make_serializable , parse_peers_html
 import httpx
 import yfinance as yf
 import pandas as pd
@@ -36,16 +37,20 @@ async def remove_stock(ticker: str, user=Depends(get_current_user)):
     await db.watchlists.update_one({"user_id": user_id}, {"$pull": {"tickers": ticker}})
     return {"msg": f"{ticker} removed"}
 
-
-@router.get("/peers")
-async def get_peers(ticker: str):
+@router.get("/peers/{company_id}")
+async def get_peers(company_id: str):
+    # Step 1: Fetch HTML from Screener
     company_id = "6598250"  # Example: Map ticker to company_id
-    url = f"https://www.screener.in/api/company/{company_id}/peers/"
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url)
-        r.raise_for_status()
-        return r.json()
 
+    url = f"https://www.screener.in/api/company/{company_id}/peers/"
+    response = requests.get(url)
+    if response.status_code != 200:
+        return {"error": "Failed to fetch data from Screener"}
+
+    # Step 2: Parse the HTML and return JSON
+    html = response.content.decode()
+    peers = parse_peers_html(html)
+    return peers
 
 @router.get("/ohlc")
 async def get_ohlc(
