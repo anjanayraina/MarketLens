@@ -3,6 +3,7 @@ from backend.db.mongo import db
 from backend.routes.auth.auth_router import get_current_user
 from fastapi import APIRouter, Depends, Query
 from bson import ObjectId
+from backend.utils.data_processing import make_serializable
 import httpx
 import yfinance as yf
 import pandas as pd
@@ -48,24 +49,39 @@ async def get_peers(ticker: str):
 
 @router.get("/ohlc")
 async def get_ohlc(
-    ticker: str,
-    period: str = Query("6mo", enum=["1d", "5d", "1mo", "3mo", "6mo", "1y", "5y", "max"]),
-    interval: str = Query("1d", enum=["1m", "5m", "15m", "1h", "1d", "1wk"])
+        ticker: str,
+        period: str = Query("6mo", enum=["1d", "5d", "1mo", "3mo", "6mo", "1y", "5y", "max"]),
+        interval: str = Query("1d", enum=["1m", "5m", "15m", "1h", "1d", "1wk"])
 ):
-    # Validate ticker
+
     if not ticker:
         return {"error": "Ticker is required"}
     df = yf.download(ticker, period=period, interval=interval)
     if df.empty:
         return []
-    df.reset_index(inplace=True)
-    # Calculate moving averages
+    df = df.reset_index()
+
+    # Clean: Use first column as date/time, remove non-date rows
+    date_col = df.columns[0]
+    df = df[pd.to_datetime(df[date_col], errors="coerce").notnull()]
+    df["Date"] = pd.to_datetime(df[date_col]).dt.strftime("%Y-%m-%d")
+
+    # Calculate moving averages (after cleaning)
     df["MA20"] = df["Close"].rolling(window=20).mean()
     df["MA50"] = df["Close"].rolling(window=50).mean()
-    df = df[["Date", "Open", "High", "Low", "Close", "Volume", "MA20", "MA50"]]
-    # Convert datetime to string for JSON
-    df["Date"] = df["Date"].astype(str)
-    return df.to_dict(orient="records")
+    for col in ["MA20", "MA50"]:
+        if col not in df.columns:
+            df[col] = [None] * len(df)
+
+    output_cols = ["Date", "Open", "High", "Low", "Close", "Volume", "MA20", "MA50"]
+    df = df[output_cols]
+
+    df = df.reset_index(drop=True)
+    records = []
+    for _, row in df.iterrows():
+        record = {str(col): make_serializable(row[col]) for col in df.columns}
+        records.append(record)
+    return records
 
 @router.post("/advice")
 async def get_advice(tickers: list, risk: str, horizon: str):
