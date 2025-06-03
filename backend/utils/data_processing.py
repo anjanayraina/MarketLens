@@ -48,3 +48,10 @@ def parse_peers_html(html: str):
         }
         peers.append(peer_data)
     return peers
+
+def make_json_serializable(record):
+    """Convert all np.nan, inf, -inf to None for JSON serialization."""
+    for k, v in record.items():
+        if isinstance(v, float) and (np.isnan(v) or np.isinf(v)):
+            record[k] = None
+    return record
