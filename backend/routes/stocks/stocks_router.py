@@ -55,40 +55,68 @@ async def get_peers(company_id: str):
 
 @router.get("/ohlc")
 async def get_ohlc(
-        ticker: str,
-        period: str = Query("6mo", enum=["1d", "5d", "1mo", "3mo", "6mo", "1y", "5y", "max"]),
-        interval: str = Query("1d", enum=["1m", "5m", "15m", "1h", "1d", "1wk"])
+    ticker: str,
+    period: str = Query("6mo", enum=["1d", "5d", "1mo", "3mo", "6mo", "1y", "5y", "max"]),
+    interval: str = Query("1d", enum=["1m", "5m", "15m", "1h", "1d", "1wk"])
 ):
-
     if not ticker:
         return {"error": "Ticker is required"}
     df = yf.download(ticker, period=period, interval=interval)
     if df.empty:
         return []
+
     df = df.reset_index()
 
-    # Clean: Use first column as date/time, remove non-date rows
-    date_col = df.columns[0]
-    df = df[pd.to_datetime(df[date_col], errors="coerce").notnull()]
-    df["Date"] = pd.to_datetime(df[date_col]).dt.strftime("%Y-%m-%d")
+    # --- FLATTEN MULTIINDEX COLUMNS ---
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [
+            '_'.join([str(l) for l in tup if l and l != '']) for tup in df.columns.values
+        ]
+    else:
+        df.columns = [str(col) for col in df.columns]
 
-    # Calculate moving averages (after cleaning)
+    # MAP BACK TO SIMPLE COLUMN NAMES
+    simple_map = {
+        k: k for k in ["Date", "Open", "High", "Low", "Close", "Volume", "MA20", "MA50"]
+    }
+    # Try to detect common yfinance patterns and simplify:
+    for col in df.columns:
+        for field in ["Open", "High", "Low", "Close", "Volume"]:
+            if field in col:
+                simple_map[col] = field
+        if "Date" in col or "index" in col:
+            simple_map[col] = "Date"
+
+    df = df.rename(columns=simple_map)
+
+    # Clean: Only keep rows where 'Date' is present and valid
+    if "Date" in df.columns:
+        df = df[pd.to_datetime(df["Date"], errors="coerce").notnull()]
+        df["Date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+    else:
+        # fallback: first column as date
+        date_col = df.columns[0]
+        df = df[pd.to_datetime(df[date_col], errors="coerce").notnull()]
+        df["Date"] = pd.to_datetime(df[date_col]).dt.strftime("%Y-%m-%d")
+
+    # Calculate moving averages
     df["MA20"] = df["Close"].rolling(window=20).mean()
     df["MA50"] = df["Close"].rolling(window=50).mean()
-    for col in ["MA20", "MA50"]:
+
+    output_cols = ["Date", "Open", "High", "Low", "Close", "Volume", "MA20", "MA50"]
+    for col in output_cols:
         if col not in df.columns:
             df[col] = [None] * len(df)
 
-    output_cols = ["Date", "Open", "High", "Low", "Close", "Volume", "MA20", "MA50"]
     df = df[output_cols]
+    df = df.replace([np.inf, -np.inf], np.nan)
 
-    df = df.reset_index(drop=True)
+    # --- SERIALIZE FOR JSON ---
     records = []
     for _, row in df.iterrows():
-        record = {str(col): make_serializable(row[col]) for col in df.columns}
+        record = {col: make_serializable(row[col]) for col in output_cols}
         records.append(record)
     return records
-
 @router.post("/advice")
 async def get_advice(tickers: list, risk: str, horizon: str):
     prompt = f"User wants advice for {tickers}, risk: {risk}, horizon: {horizon}"

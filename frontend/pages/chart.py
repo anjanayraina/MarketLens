@@ -13,6 +13,7 @@ def chart_page():
     if st.button("Show Chart"):
         res = api_get("/stocks/ohlc", token, params={"ticker": ticker, "period": period, "interval": interval})
         data = res.json() if res.ok else []
+        print(data)
         if not data:
             st.warning("No data found for this ticker/period.")
             return

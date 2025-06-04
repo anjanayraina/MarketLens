@@ -3,13 +3,16 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 def make_serializable(val):
-    # Handle both numpy and plain python nan/inf
-    if pd.isna(val) or val in [float('inf'), float('-inf'), np.inf, -np.inf]:
+    # Converts NaN, numpy types, Timestamps to JSON-safe Python types
+    if pd.isna(val):
         return None
-    if isinstance(val, (np.generic,)):
-        return val.item()
+    if isinstance(val, (np.integer, np.int64)):
+        return int(val)
+    if isinstance(val, (np.floating, np.float64)):
+        return float(val)
+    if isinstance(val, (pd.Timestamp, np.datetime64)):
+        return str(val)[:10]  # Only keep date
     return val
-
 
 def parse_peers_html(html: str):
     soup = BeautifulSoup(html, "html.parser")
