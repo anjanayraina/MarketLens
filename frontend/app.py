@@ -17,10 +17,10 @@ from my_pages.watchlist import watchlist_page
 from my_pages.profile import profile_page
 from my_pages.activity import activity_page
 from my_pages.login import login_page
-
+from my_pages.news import news_page
 menu = st.sidebar.radio(
     "Navigation",
-    ("Dashboard", "Chart", "My Watchlist", "Profile", "Activity Log", "Logout" if get_token() else "Login")
+    ("Dashboard", "Chart", "My Watchlist", "Profile", "Activity Log" , "News", "Logout" if get_token() else "Login")
 )
 
 if menu == "Chart" and get_token():
@@ -33,6 +33,8 @@ elif menu == "Activity Log" and get_token():
     activity_page()
 elif menu == "Login" or not get_token():
     login_page()
+elif menu == "News" or not get_token():
+    news_page()
 elif menu == "Logout" and get_token():
     if st.button("Confirm Logout"):
         clear_token()
