@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from utils.state import get_token, clear_token
-from pages.chart import chart_page
+from my_pages.chart import chart_page
 
 def load_env():
     app_env = os.getenv("APP_ENV", "local").lower()
@@ -13,10 +13,10 @@ def load_env():
 
 load_env()
 
-from pages.watchlist import watchlist_page
-from pages.profile import profile_page
-from pages.activity import activity_page
-from pages.login import login_page
+from my_pages.watchlist import watchlist_page
+from my_pages.profile import profile_page
+from my_pages.activity import activity_page
+from my_pages.login import login_page
 
 menu = st.sidebar.radio(
     "Navigation",
